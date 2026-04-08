@@ -41,5 +41,5 @@ wget -O /tmp/RobloxPlayerInstaller.exe \
 
 sleep 3
 
-echo "Starting supervisor..."
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+echo "Starting streaming..."
+python3 bot.py
