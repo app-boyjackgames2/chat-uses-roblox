@@ -5,29 +5,56 @@ import signal
 import atexit
 import threading
 import subprocess
+
+# ─── Wait for Xvfb display before importing anything X-dependent ──────────────
+def _wait_for_display(display=None, timeout=120):
+    dno       = (display or os.environ.get("DISPLAY", ":1")).lstrip(":")
+    sock_path = f"/tmp/.X11-unix/X{dno}"
+    deadline  = time.time() + timeout
+    print(f"[BOT] Waiting for X display {sock_path} ...", flush=True)
+    while time.time() < deadline:
+        if os.path.exists(sock_path):
+            print(f"[BOT] Display ready.", flush=True)
+            return True
+        time.sleep(1)
+    print(f"[BOT] WARNING: display not found after {timeout}s — continuing anyway.", flush=True)
+    return False
+
+_wait_for_display()
+
 import pyautogui
 from PIL import Image
 from googleapiclient.discovery import build
+
 # ─── Config ───────────────────────────────────────────────────────────────────
+
 YOUTUBE_API_KEY      = os.environ.get("YOUTUBE_API_KEY",  "YOUR_GOOGLE_CLOUD_API_KEY_HERE")
 LIVE_STREAM_VIDEO_ID = os.environ.get("YOUTUBE_VIDEO_ID", "YOUR_YOUTUBE_LIVE_VIDEO_ID")
 ROBLOX_GAME_ID       = os.environ.get("ROBLOX_GAME_ID",   "YOUR_ROBLOX_GAME_ID")
+
 ROBLOX_USERNAME = "chatusesroblox5"
 ROBLOX_PASSWORD = "DenisPro1408"
+
 LOGIN_WAIT_SECONDS  = 300
 LOGIN_POLL_INTERVAL = 5
+
 JOINGAME_PREFIX          = "!joingame"
 JOINGAME_COLLECT_SECONDS = 120
 JOINGAME_SEARCH_WAIT     = 10
 JOINGAME_RESULT_WAIT     = 5
+
 LEAVEGAME_PREFIX          = "!leavegame"
 LEAVEGAME_INIT_WAIT       = 5
 LEAVEGAME_ESC_TO_L_WAIT   = 3
 LEAVEGAME_L_TO_ENTER_WAIT = 3
+
 SCREENSHOT_DIR          = "/tmp/roblox_shots"
 SCREENSHOT_DELETE_DELAY = 10
+
 STREAM_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stream.sh")
+
 # ─── Roblox app UI coordinates (1920×1080) ───────────────────────────────────
+
 RBX_SEARCH_BAR_X   = 490
 RBX_SEARCH_BAR_Y   = 45
 RBX_FIRST_RESULT_X = 230
@@ -36,7 +63,9 @@ RBX_PLAY_BUTTON_X  = 960
 RBX_PLAY_BUTTON_Y  = 615
 RBX_PLAY_CONFIRM_X = 960
 RBX_PLAY_CONFIRM_Y = 500
+
 # ─── Command tables ───────────────────────────────────────────────────────────
+
 KEY_COMMANDS = {
     "w":     "w",
     "a":     "a",
@@ -49,6 +78,7 @@ KEY_COMMANDS = {
     "left":  "left",
     "right": "right",
 }
+
 CLICK_COMMANDS = {
     "click":        "left",
     "lclick":       "left",
@@ -62,11 +92,18 @@ CLICK_COMMANDS = {
     "middle click": "middle",
     "middle mouse": "middle",
 }
+
 pyautogui.PAUSE    = 0.08
 pyautogui.FAILSAFE = False
+
 screen_width, screen_height = pyautogui.size()
+
+
 # ─── Stream process ───────────────────────────────────────────────────────────
+
 _stream_proc = None
+
+
 def start_stream():
     global _stream_proc
     if not os.path.isfile(STREAM_SCRIPT):
@@ -80,10 +117,13 @@ def start_stream():
         stderr=subprocess.STDOUT
     )
     print(f"[STREAM] stream.sh started (PID: {_stream_proc.pid})")
+
     def _log_output():
         for line in iter(_stream_proc.stdout.readline, b""):
             print(f"[STREAM] {line.decode(errors='replace').rstrip()}")
     threading.Thread(target=_log_output, daemon=True).start()
+
+
 def stop_stream():
     global _stream_proc
     if _stream_proc and _stream_proc.poll() is None:
@@ -94,8 +134,13 @@ def stop_stream():
         except subprocess.TimeoutExpired:
             _stream_proc.kill()
         print("[STREAM] stream.sh stopped.")
+
+
 atexit.register(stop_stream)
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
 def find_roblox_exe():
     wine_prefix  = os.environ.get("WINEPREFIX", os.path.expanduser("~/.wine"))
     versions_dir = os.path.join(
@@ -109,6 +154,8 @@ def find_roblox_exe():
                 print(f"[BOT] Found Roblox at: {candidate}")
                 return candidate
     return None
+
+
 def launch_roblox(game_id):
     exe = find_roblox_exe()
     cmd = (
@@ -118,6 +165,8 @@ def launch_roblox(game_id):
     )
     print(f"[BOT] Launching Roblox — Game ID: {game_id}")
     subprocess.Popen(cmd, env={**os.environ, "DISPLAY": ":1"})
+
+
 def focus_window(title="Roblox"):
     r = subprocess.run(
         ["xdotool", "search", "--name", title, "windowactivate", "--sync"],
@@ -125,9 +174,13 @@ def focus_window(title="Roblox"):
     )
     time.sleep(0.5)
     return r.returncode == 0
+
+
 def roblox_window_visible():
     r = subprocess.run(["xdotool", "search", "--name", "Roblox"], capture_output=True)
     return r.returncode == 0 and r.stdout.strip() != b""
+
+
 def take_screenshot():
     subprocess.run(
         ["scrot", "/tmp/roblox_screen.png"],
@@ -138,6 +191,8 @@ def take_screenshot():
         return Image.open("/tmp/roblox_screen.png")
     except Exception:
         return None
+
+
 def take_live_screenshot():
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -151,6 +206,8 @@ def take_live_screenshot():
         print(f"[SCREENSHOT] Captured → {path}")
         return path
     return None
+
+
 def schedule_delete(path, delay=SCREENSHOT_DELETE_DELAY):
     def _delete():
         time.sleep(delay)
@@ -160,6 +217,8 @@ def schedule_delete(path, delay=SCREENSHOT_DELETE_DELAY):
         except FileNotFoundError:
             pass
     threading.Thread(target=_delete, daemon=True).start()
+
+
 def click_at(x, y, button="left", double=False):
     pyautogui.moveTo(x, y, duration=0.2)
     time.sleep(0.1)
@@ -168,13 +227,19 @@ def click_at(x, y, button="left", double=False):
     else:
         pyautogui.click(button=button)
     time.sleep(0.15)
+
+
 def type_text(text, interval=0.07):
     pyautogui.typewrite(text, interval=interval)
+
+
 def clear_field():
     pyautogui.hotkey("ctrl", "a")
     time.sleep(0.05)
     pyautogui.press("delete")
     time.sleep(0.05)
+
+
 def find_green_button():
     img = take_screenshot()
     if img is None:
@@ -192,21 +257,29 @@ def find_green_button():
         ys = [p[1] for p in green_pixels]
         return (sum(xs) // len(xs), sum(ys) // len(ys))
     return None
+
+
 # ─── Login ────────────────────────────────────────────────────────────────────
+
 def roblox_login():
     cx = screen_width  // 2
     cy = screen_height // 2
+
     USERNAME_OFFSET = -80
     PASSWORD_OFFSET =   0
     SIGNIN_OFFSET   =  80
+
     print("[LOGIN] Waiting up to 5 minutes for the Roblox login screen...")
+
     deadline    = time.time() + LOGIN_WAIT_SECONDS
     login_found = False
+
     while time.time() < deadline:
         if not roblox_window_visible():
             print("[LOGIN] Window not visible yet...")
             time.sleep(LOGIN_POLL_INTERVAL)
             continue
+
         focus_window("Roblox")
         img = take_screenshot()
         if img:
@@ -218,62 +291,76 @@ def roblox_login():
                 print("[LOGIN] Login screen detected.")
                 login_found = True
                 break
+
         remaining = int(deadline - time.time())
         print(f"[LOGIN] Still waiting... {remaining}s remaining")
         time.sleep(LOGIN_POLL_INTERVAL)
+
     if not login_found:
         print("[LOGIN] Timeout — attempting login anyway.")
+
     focus_window("Roblox")
     time.sleep(1.0)
+
     print("[LOGIN] Entering username...")
     click_at(cx, cy + USERNAME_OFFSET)
     time.sleep(0.2)
     clear_field()
     type_text(ROBLOX_USERNAME)
     time.sleep(0.3)
+
     print("[LOGIN] Entering password...")
     click_at(cx, cy + PASSWORD_OFFSET)
     time.sleep(0.2)
     clear_field()
     type_text(ROBLOX_PASSWORD)
     time.sleep(0.3)
+
     print("[LOGIN] Clicking Sign In...")
     click_at(cx, cy + SIGNIN_OFFSET)
     time.sleep(0.4)
     pyautogui.press("return")
+
     print("[LOGIN] Waiting 30 seconds for game to load after sign-in...")
     time.sleep(30)
     focus_window("Roblox")
     print("[LOGIN] Login sequence complete.")
+
+
 # ─── Leave Game ───────────────────────────────────────────────────────────────
+
 def leave_game():
     print("[LEAVEGAME] Initiating leave sequence...")
     focus_window("Roblox")
+
     print(f"[LEAVEGAME] Waiting {LEAVEGAME_INIT_WAIT}s before opening menu...")
     time.sleep(LEAVEGAME_INIT_WAIT)
+
     print("[LEAVEGAME] Pressing ESC...")
     focus_window("Roblox")
     pyautogui.press("escape")
+
     print(f"[LEAVEGAME] Waiting {LEAVEGAME_ESC_TO_L_WAIT}s for menu to open...")
     time.sleep(LEAVEGAME_ESC_TO_L_WAIT)
+
     print("[LEAVEGAME] Pressing L (Leave Game)...")
     focus_window("Roblox")
     pyautogui.press("l")
+
     print(f"[LEAVEGAME] Waiting {LEAVEGAME_L_TO_ENTER_WAIT}s for confirm dialog...")
     time.sleep(LEAVEGAME_L_TO_ENTER_WAIT)
+
     print("[LEAVEGAME] Pressing ENTER to confirm...")
     focus_window("Roblox")
     pyautogui.press("return")
+
     print("[LEAVEGAME] Left game. Waiting for home screen...")
     time.sleep(5)
+
 
 # ─── Join Game ────────────────────────────────────────────────────────────────
 
 def joingame_search(game_name):
-    """
-    Leaves the current game, then searches for `game_name` in the Roblox app,
-    clicks the first result after 10 s, then clicks Play after 5 s.
-    """
     print(f"[JOINGAME] Starting join sequence for: {game_name!r}")
 
     leave_game()
@@ -282,7 +369,6 @@ def joingame_search(game_name):
     focus_window("Roblox")
     time.sleep(0.5)
 
-    # Click search bar
     click_at(RBX_SEARCH_BAR_X, RBX_SEARCH_BAR_Y)
     time.sleep(0.3)
     clear_field()
@@ -293,38 +379,35 @@ def joingame_search(game_name):
     print(f"[JOINGAME] Waiting {JOINGAME_SEARCH_WAIT}s for search results...")
     time.sleep(JOINGAME_SEARCH_WAIT)
 
-    # Click first search result
     focus_window("Roblox")
     print("[JOINGAME] Clicking first search result...")
     click_at(RBX_FIRST_RESULT_X, RBX_FIRST_RESULT_Y)
 
-    print(f"[JOINGAME] Waiting {JOINGAME_RESULT_WAIT}s for game page to load...")
+    print(f"[JOINGAME] Waiting {JOINGAME_RESULT_WAIT}s for game page...")
     time.sleep(JOINGAME_RESULT_WAIT)
 
-    # Find and click Play button (try green-detection first, fall back to fixed pos)
     focus_window("Roblox")
     green_pos = find_green_button()
     if green_pos:
-        print(f"[JOINGAME] Green Play button found at {green_pos}, clicking...")
+        print(f"[JOINGAME] Green Play button at {green_pos}, clicking...")
         click_at(*green_pos)
     else:
-        print(f"[JOINGAME] Falling back to fixed Play button position ({RBX_PLAY_BUTTON_X}, {RBX_PLAY_BUTTON_Y})...")
+        print(f"[JOINGAME] Fallback Play position ({RBX_PLAY_BUTTON_X}, {RBX_PLAY_BUTTON_Y})...")
         click_at(RBX_PLAY_BUTTON_X, RBX_PLAY_BUTTON_Y)
 
-    # Confirm any "Play" popup/launcher dialog that Roblox may show
     time.sleep(3)
     focus_window("Roblox")
     green_pos2 = find_green_button()
     if green_pos2:
-        print(f"[JOINGAME] Second Play/confirm button at {green_pos2}, clicking...")
+        print(f"[JOINGAME] Confirm Play at {green_pos2}, clicking...")
         click_at(*green_pos2)
     else:
         click_at(RBX_PLAY_CONFIRM_X, RBX_PLAY_CONFIRM_Y)
 
-    print("[JOINGAME] Play clicked — game should be loading.")
+    print("[JOINGAME] Play clicked — game loading.")
 
 
-# ─── YouTube chat parsing ─────────────────────────────────────────────────────
+# ─── YouTube chat ─────────────────────────────────────────────────────────────
 
 def get_live_chat_messages(youtube, live_chat_id, page_token=None):
     params = {
@@ -352,60 +435,40 @@ def get_live_chat_id(youtube, video_id):
     return chat_id
 
 
+# ─── Command parsing ──────────────────────────────────────────────────────────
+
 def parse_command(message_text):
-    """
-    Returns one of:
-      ("key",       key_name)
-      ("mouse",     x, y)
-      ("click",     button)          — click at current mouse position
-      ("click_pos", button, x, y)   — move then click
-      ("joingame",  game_name)       — !joingame <name>
-      ("leavegame",)                 — !leavegame
-      None
-    """
     raw  = message_text.strip()
     text = raw.lower()
 
-    # ── !leavegame ─────────────────────────────────────────────────────────
     if text.startswith(LEAVEGAME_PREFIX):
         return ("leavegame",)
 
-    # ── !joingame ──────────────────────────────────────────────────────────
     if text.startswith(JOINGAME_PREFIX):
         rest = raw[len(JOINGAME_PREFIX):].strip()
         if rest:
             return ("joingame", rest)
         return None
 
-    # ── click / right-click / middle-click at X Y ─────────────────────────
-    # Patterns: "click 960 540", "rclick 100 200", "right click 500 300", etc.
     for alias, button in CLICK_COMMANDS.items():
-        pattern = re.compile(
-            r"^" + re.escape(alias) + r"\s+(\d+)\s+(\d+)$"
-        )
-        m = pattern.match(text)
+        m = re.match(r"^" + re.escape(alias) + r"\s+(\d+)\s+(\d+)$", text)
         if m:
             try:
-                x, y = int(m.group(1)), int(m.group(2))
-                return ("click_pos", button, x, y)
+                return ("click_pos", button, int(m.group(1)), int(m.group(2)))
             except ValueError:
                 pass
 
-    # ── click / right-click / middle-click at current position ────────────
     if text in CLICK_COMMANDS:
         return ("click", CLICK_COMMANDS[text])
 
-    # ── mouse move: "mouse X Y" ────────────────────────────────────────────
     if text.startswith("mouse "):
         parts = text.split()
         if len(parts) == 3:
             try:
-                x, y = int(parts[1]), int(parts[2])
-                return ("mouse", x, y)
+                return ("mouse", int(parts[1]), int(parts[2]))
             except ValueError:
                 pass
 
-    # ── keyboard keys ─────────────────────────────────────────────────────
     if text in KEY_COMMANDS:
         return ("key", KEY_COMMANDS[text])
 
@@ -413,36 +476,27 @@ def parse_command(message_text):
 
 
 def tally_votes(messages):
-    """Return the most-voted command tuple, or None."""
     votes = {}
     cmds  = {}
     for msg in messages:
-        text = msg.get("snippet", {}).get("displayMessage", "")
-        cmd  = parse_command(text)
+        cmd = parse_command(msg.get("snippet", {}).get("displayMessage", ""))
         if cmd:
             key = str(cmd)
             votes[key] = votes.get(key, 0) + 1
             cmds[key]  = cmd
     if not votes:
         return None
-    winner = max(votes, key=votes.__getitem__)
-    return cmds[winner]
+    return cmds[max(votes, key=votes.__getitem__)]
 
 
 def tally_joingame(messages):
-    """
-    Among all !joingame messages, return the game name with the most votes.
-    """
     votes = {}
     for msg in messages:
-        text = msg.get("snippet", {}).get("displayMessage", "")
-        cmd  = parse_command(text)
+        cmd = parse_command(msg.get("snippet", {}).get("displayMessage", ""))
         if cmd and cmd[0] == "joingame":
             name = cmd[1].lower()
             votes[name] = votes.get(name, 0) + 1
-    if not votes:
-        return None
-    return max(votes, key=votes.__getitem__)
+    return max(votes, key=votes.__getitem__) if votes else None
 
 
 # ─── Execute ──────────────────────────────────────────────────────────────────
@@ -450,36 +504,31 @@ def tally_joingame(messages):
 def execute_command(cmd):
     if cmd is None:
         return
-
     kind = cmd[0]
 
     if kind == "key":
-        key = cmd[1]
-        print(f"[BOT] Key press: {key}")
-        pyautogui.keyDown(key)
+        print(f"[BOT] Key: {cmd[1]}")
+        pyautogui.keyDown(cmd[1])
         time.sleep(0.3)
-        pyautogui.keyUp(key)
+        pyautogui.keyUp(cmd[1])
 
     elif kind == "mouse":
-        _, x, y = cmd
-        x = max(0, min(x, screen_width  - 1))
-        y = max(0, min(y, screen_height - 1))
+        x = max(0, min(cmd[1], screen_width  - 1))
+        y = max(0, min(cmd[2], screen_height - 1))
         print(f"[BOT] Mouse move → ({x}, {y})")
         pyautogui.moveTo(x, y, duration=0.2)
 
     elif kind == "click":
-        button = cmd[1]
-        print(f"[BOT] Mouse {button} click at current position")
-        pyautogui.click(button=button)
+        print(f"[BOT] {cmd[1]} click at current position")
+        pyautogui.click(button=cmd[1])
 
     elif kind == "click_pos":
-        _, button, x, y = cmd
-        x = max(0, min(x, screen_width  - 1))
-        y = max(0, min(y, screen_height - 1))
-        print(f"[BOT] Mouse {button} click → ({x}, {y})")
+        x = max(0, min(cmd[2], screen_width  - 1))
+        y = max(0, min(cmd[3], screen_height - 1))
+        print(f"[BOT] {cmd[1]} click → ({x}, {y})")
         pyautogui.moveTo(x, y, duration=0.2)
         time.sleep(0.1)
-        pyautogui.click(button=button)
+        pyautogui.click(button=cmd[1])
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -498,14 +547,18 @@ def main():
     print("[BOT]   Movement  : W  A  S  D  SPACE  ESC  UP  DOWN  LEFT  RIGHT")
     print("[BOT]   Mouse     : MOUSE X Y  |  CLICK  |  RCLICK  |  MCLICK")
     print("[BOT]   Positioned: CLICK X Y  |  RCLICK X Y")
-    print("[BOT]   Join game : !joingame <game name>  (2-minute vote window)")
-    print("[BOT]   Leave game: !leavegame  → ESC (5s) → L (3s) → ENTER")
+    print("[BOT]   Join game : !joingame <name>  (2-minute vote window)")
+    print("[BOT]   Leave game: !leavegame  → ESC → L → ENTER")
     print("[BOT] ============================================================")
 
+    # ── Launch stream.sh in the background ────────────────────────────────────
     start_stream()
+
+    # ── Launch Roblox and log in ───────────────────────────────────────────────
     launch_roblox(ROBLOX_GAME_ID)
     roblox_login()
 
+    # ── Connect to YouTube Live Chat ───────────────────────────────────────────
     print("[BOT] Connecting to YouTube Live Chat API...")
     youtube      = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
     live_chat_id = get_live_chat_id(youtube, LIVE_STREAM_VIDEO_ID)
@@ -535,38 +588,35 @@ def main():
             page_token = response.get("nextPageToken")
             poll_ms    = response.get("pollingIntervalMillis", 10000)
 
-            # ── Detect !leavegame in this window (immediate, beats joingame) ──
-            leavegame_this_window = any(is_special(m, "leavegame") for m in items)
-            if leavegame_this_window and not joingame_mode:
-                print("[BOT] !leavegame triggered by chat — executing leave sequence...")
+            # ── !leavegame — immediate ─────────────────────────────────────────
+            if any(is_special(m, "leavegame") for m in items) and not joingame_mode:
+                print("[BOT] !leavegame triggered — executing leave sequence...")
                 leave_game()
                 collected_messages = []
-                # skip the rest of this window
                 wait_until = time.time() + (poll_ms / 1000.0)
                 while time.time() < wait_until:
                     time.sleep(1)
                 continue
 
-            # ── Detect !joingame in this window ───────────────────────────────
-            joingame_this_window = any(is_special(m, "joingame") for m in items)
-            if joingame_this_window and not joingame_mode:
+            # ── !joingame — open 2-minute voting window ────────────────────────
+            if any(is_special(m, "joingame") for m in items) and not joingame_mode:
                 joingame_mode     = True
                 joingame_deadline = time.time() + JOINGAME_COLLECT_SECONDS
                 print("[BOT] !joingame detected — 2-minute voting window open...")
 
-            # Wait for next poll
+            # ── Wait for next poll ─────────────────────────────────────────────
             wait_until = time.time() + (poll_ms / 1000.0)
             while time.time() < wait_until:
                 time.sleep(1)
 
-            # ── !joingame mode: accumulate for 2 minutes then act ─────────────
+            # ── !joingame: tally and execute after 2 minutes ───────────────────
             if joingame_mode and time.time() >= joingame_deadline:
                 game_name = tally_joingame(collected_messages)
                 if game_name:
-                    print(f"[BOT] !joingame winner: {game_name!r} — starting join sequence")
+                    print(f"[BOT] !joingame winner: {game_name!r}")
                     joingame_search(game_name)
                 else:
-                    print("[BOT] !joingame vote window ended — no valid game name found")
+                    print("[BOT] !joingame — no valid game name found")
                 joingame_mode      = False
                 joingame_deadline  = None
                 collected_messages = []
@@ -575,8 +625,8 @@ def main():
             # ── Normal command window ──────────────────────────────────────────
             if not joingame_mode and collected_messages:
                 regular = [
-                    msg for msg in collected_messages
-                    if not is_special(msg, "joingame") and not is_special(msg, "leavegame")
+                    m for m in collected_messages
+                    if not is_special(m, "joingame") and not is_special(m, "leavegame")
                 ]
                 winning_cmd = tally_votes(regular)
                 if winning_cmd:
