@@ -502,7 +502,7 @@ def main():
     print("[BOT]   Leave game: !leavegame  → ESC (5s) → L (3s) → ENTER")
     print("[BOT] ============================================================")
 
-    
+    start_stream()
     launch_roblox(ROBLOX_GAME_ID)
     roblox_login()
 
