@@ -1,4 +1,4 @@
-FROM scottyhardy/docker-wine:latest
+FROM --platform=linux/amd64 ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:1
