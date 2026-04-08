@@ -18,6 +18,7 @@ RUN dpkg --add-architecture i386 && \
     x11vnc \
     novnc \
     websockify \
+    wine \
     openbox \
     xterm \
     wget \
