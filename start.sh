@@ -43,5 +43,6 @@ sleep 3
 
 pip3 install pyautogui
 
-echo "Starting streaming..."
+echo "Starting supervisor and streaming..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 python3 bot.py
