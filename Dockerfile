@@ -21,6 +21,7 @@ RUN dpkg --add-architecture i386 && \
         novnc \
         websockify \
         wine \
+        wine32 \
         openbox \
         wget \
         curl \
