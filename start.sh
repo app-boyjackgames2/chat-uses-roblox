@@ -39,6 +39,8 @@ export PULSE_SERVER=unix:/run/user/0/pulse/native
 wget -O /tmp/RobloxPlayerInstaller.exe \
 "https://www.roblox.com/download/client?os=win"
 
+pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib python-xlib pyautogui Pillow requests numpy opencv-python-headless
+
 sleep 3
 
 echo "Starting streaming..."
