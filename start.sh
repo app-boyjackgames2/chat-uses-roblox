@@ -29,14 +29,18 @@ if [ -z "${YOUTUBE_API_KEY}" ] || [ "${YOUTUBE_API_KEY}" = "YOUR_GOOGLE_CLOUD_AP
   echo "WARNING: YOUTUBE_API_KEY is not set — chat bot will not work."
 fi
 
-wget -O /tmp/RobloxPlayerInstaller.exe \
-"https://www.roblox.com/download/client?os=win"
 
 echo "Initializing Wine prefix..."
 WINEARCH=win64 WINEPREFIX=/root/.wine wine wineboot --init 2>/dev/null || true
 
 echo "Setting PulseAudio as default sink for Wine..."
 export PULSE_SERVER=unix:/run/user/0/pulse/native
+
+wget -O /tmp/RobloxPlayerInstaller.exe \
+"https://www.roblox.com/download/client?os=win"
+
+DISPLAY=:1
+wine /tmp/RobloxPlayerInstaller.exe
 
 sleep 3
 
