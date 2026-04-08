@@ -39,9 +39,8 @@ export PULSE_SERVER=unix:/run/user/0/pulse/native
 wget -O /tmp/RobloxPlayerInstaller.exe \
 "https://www.roblox.com/download/client?os=win"
 
-wine /tmp/RobloxPlayerInstaller.exe
-
 sleep 3
 
 echo "Starting supervisor..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+wine /tmp/RobloxPlayerInstaller.exe
