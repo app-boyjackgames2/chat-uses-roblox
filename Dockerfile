@@ -38,20 +38,24 @@ RUN dpkg --add-architecture i386 && \
     libpulse-dev \
     fonts-liberation \
     fonts-dejavu \
+    python3-tk \
+    python3-xlib \
     && rm -rf /var/lib/apt/lists/*
 
+# Required Python packages (core — must not fail)
 RUN pip3 install --no-cache-dir \
     google-api-python-client \
     google-auth-httplib2 \
     google-auth-oauthlib \
+    python-xlib \
     pyautogui \
     Pillow \
     requests \
-    keyboard \
-    mouse \
-    opencv-python-headless \
     numpy \
-    pywin32; exit 0
+    opencv-python-headless
+
+# Optional packages (allowed to fail — e.g. pywin32 is Windows-only)
+RUN pip3 install --no-cache-dir keyboard mouse || true
 
 RUN winecfg || true
 
