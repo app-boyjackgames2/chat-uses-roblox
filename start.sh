@@ -43,7 +43,3 @@ sleep 3
 
 echo "Starting streaming..."
 python3 bot.py
-./stream.sh
-
-
-wine /tmp/RobloxPlayerInstaller.exe
