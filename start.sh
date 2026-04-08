@@ -39,5 +39,3 @@ sleep 3
 
 echo "Starting supervisor..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
-
-./stream.sh
