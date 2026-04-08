@@ -4,7 +4,7 @@ set -e
 mkdir -p /var/log/supervisor
 
 SNAPSHOT_DIR="${SNAPSHOT_DIR:-/tmp/stream_snapshots}"
-SNAPSHOT_INTERVAL="${SNAPSHOT_INTERVAL:-30}"
+SNAPSHOT_INTERVAL="${SNAPSHOT_INTERVAL:-0.5}"
 
 echo "=== Chat Plays Roblox - Starting Services ==="
 echo "Screen:           ${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}"
@@ -40,6 +40,8 @@ wget -O /tmp/RobloxPlayerInstaller.exe \
 "https://www.roblox.com/download/client?os=win"
 
 sleep 3
+
+pip3 install pyautogui
 
 echo "Starting streaming..."
 python3 bot.py
