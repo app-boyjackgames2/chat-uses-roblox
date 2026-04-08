@@ -39,7 +39,6 @@ export PULSE_SERVER=unix:/run/user/0/pulse/native
 wget -O /tmp/RobloxPlayerInstaller.exe \
 "https://www.roblox.com/download/client?os=win"
 
-DISPLAY=:1
 wine /tmp/RobloxPlayerInstaller.exe
 
 sleep 3
