@@ -1,51 +1,42 @@
 import os
 import re
 import time
+import signal
+import atexit
 import threading
 import subprocess
 import pyautogui
 from PIL import Image
 from googleapiclient.discovery import build
-
 # ─── Config ───────────────────────────────────────────────────────────────────
-
 YOUTUBE_API_KEY      = os.environ.get("YOUTUBE_API_KEY",  "YOUR_GOOGLE_CLOUD_API_KEY_HERE")
 LIVE_STREAM_VIDEO_ID = os.environ.get("YOUTUBE_VIDEO_ID", "YOUR_YOUTUBE_LIVE_VIDEO_ID")
 ROBLOX_GAME_ID       = os.environ.get("ROBLOX_GAME_ID",   "YOUR_ROBLOX_GAME_ID")
-
 ROBLOX_USERNAME = "chatusesroblox5"
 ROBLOX_PASSWORD = "DenisPro1408"
-
 LOGIN_WAIT_SECONDS  = 300
 LOGIN_POLL_INTERVAL = 5
-
 JOINGAME_PREFIX          = "!joingame"
-JOINGAME_COLLECT_SECONDS = 120   # 2-minute voting window
-JOINGAME_SEARCH_WAIT     = 10    # seconds after search before clicking result
-JOINGAME_RESULT_WAIT     = 5     # seconds after clicking result before clicking Play
-
+JOINGAME_COLLECT_SECONDS = 120
+JOINGAME_SEARCH_WAIT     = 10
+JOINGAME_RESULT_WAIT     = 5
 LEAVEGAME_PREFIX          = "!leavegame"
-LEAVEGAME_INIT_WAIT       = 5     # seconds before pressing ESC
-LEAVEGAME_ESC_TO_L_WAIT   = 3     # seconds between ESC and L
-LEAVEGAME_L_TO_ENTER_WAIT = 3     # seconds between L and ENTER
-
+LEAVEGAME_INIT_WAIT       = 5
+LEAVEGAME_ESC_TO_L_WAIT   = 3
+LEAVEGAME_L_TO_ENTER_WAIT = 3
 SCREENSHOT_DIR          = "/tmp/roblox_shots"
-SCREENSHOT_DELETE_DELAY = 10      # seconds before each loop screenshot is deleted
-
+SCREENSHOT_DELETE_DELAY = 10
+STREAM_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stream.sh")
 # ─── Roblox app UI coordinates (1920×1080) ───────────────────────────────────
-# Adjust these if your screen resolution or Roblox UI version differs.
-
-RBX_SEARCH_BAR_X     = 490   # Search input field (top nav bar)
-RBX_SEARCH_BAR_Y     = 45
-RBX_FIRST_RESULT_X   = 230   # First search result card
-RBX_FIRST_RESULT_Y   = 300
-RBX_PLAY_BUTTON_X    = 960   # "Play" green button on game detail page
-RBX_PLAY_BUTTON_Y    = 615
-RBX_PLAY_CONFIRM_X   = 960   # "Play" inside the Roblox launcher popup
-RBX_PLAY_CONFIRM_Y   = 500
-
+RBX_SEARCH_BAR_X   = 490
+RBX_SEARCH_BAR_Y   = 45
+RBX_FIRST_RESULT_X = 230
+RBX_FIRST_RESULT_Y = 300
+RBX_PLAY_BUTTON_X  = 960
+RBX_PLAY_BUTTON_Y  = 615
+RBX_PLAY_CONFIRM_X = 960
+RBX_PLAY_CONFIRM_Y = 500
 # ─── Command tables ───────────────────────────────────────────────────────────
-
 KEY_COMMANDS = {
     "w":     "w",
     "a":     "a",
@@ -58,8 +49,6 @@ KEY_COMMANDS = {
     "left":  "left",
     "right": "right",
 }
-
-# Maps chat text → mouse button
 CLICK_COMMANDS = {
     "click":        "left",
     "lclick":       "left",
@@ -73,15 +62,40 @@ CLICK_COMMANDS = {
     "middle click": "middle",
     "middle mouse": "middle",
 }
-
 pyautogui.PAUSE    = 0.08
 pyautogui.FAILSAFE = False
-
 screen_width, screen_height = pyautogui.size()
-
-
+# ─── Stream process ───────────────────────────────────────────────────────────
+_stream_proc = None
+def start_stream():
+    global _stream_proc
+    if not os.path.isfile(STREAM_SCRIPT):
+        print(f"[STREAM] stream.sh not found at {STREAM_SCRIPT} — skipping")
+        return
+    print(f"[STREAM] Launching stream: {STREAM_SCRIPT}")
+    _stream_proc = subprocess.Popen(
+        ["bash", STREAM_SCRIPT],
+        env={**os.environ, "DISPLAY": ":1"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT
+    )
+    print(f"[STREAM] stream.sh started (PID: {_stream_proc.pid})")
+    def _log_output():
+        for line in iter(_stream_proc.stdout.readline, b""):
+            print(f"[STREAM] {line.decode(errors='replace').rstrip()}")
+    threading.Thread(target=_log_output, daemon=True).start()
+def stop_stream():
+    global _stream_proc
+    if _stream_proc and _stream_proc.poll() is None:
+        print(f"[STREAM] Stopping stream.sh (PID: {_stream_proc.pid})...")
+        _stream_proc.send_signal(signal.SIGTERM)
+        try:
+            _stream_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _stream_proc.kill()
+        print("[STREAM] stream.sh stopped.")
+atexit.register(stop_stream)
 # ─── Helpers ──────────────────────────────────────────────────────────────────
-
 def find_roblox_exe():
     wine_prefix  = os.environ.get("WINEPREFIX", os.path.expanduser("~/.wine"))
     versions_dir = os.path.join(
@@ -95,8 +109,6 @@ def find_roblox_exe():
                 print(f"[BOT] Found Roblox at: {candidate}")
                 return candidate
     return None
-
-
 def launch_roblox(game_id):
     exe = find_roblox_exe()
     cmd = (
@@ -106,8 +118,6 @@ def launch_roblox(game_id):
     )
     print(f"[BOT] Launching Roblox — Game ID: {game_id}")
     subprocess.Popen(cmd, env={**os.environ, "DISPLAY": ":1"})
-
-
 def focus_window(title="Roblox"):
     r = subprocess.run(
         ["xdotool", "search", "--name", title, "windowactivate", "--sync"],
@@ -115,13 +125,9 @@ def focus_window(title="Roblox"):
     )
     time.sleep(0.5)
     return r.returncode == 0
-
-
 def roblox_window_visible():
     r = subprocess.run(["xdotool", "search", "--name", "Roblox"], capture_output=True)
     return r.returncode == 0 and r.stdout.strip() != b""
-
-
 def take_screenshot():
     subprocess.run(
         ["scrot", "/tmp/roblox_screen.png"],
@@ -132,13 +138,7 @@ def take_screenshot():
         return Image.open("/tmp/roblox_screen.png")
     except Exception:
         return None
-
-
 def take_live_screenshot():
-    """
-    Captures a timestamped PNG of DISPLAY:1 into SCREENSHOT_DIR.
-    Returns the path of the saved file, or None on failure.
-    """
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     path = os.path.join(SCREENSHOT_DIR, f"live_{timestamp}.png")
@@ -151,12 +151,7 @@ def take_live_screenshot():
         print(f"[SCREENSHOT] Captured → {path}")
         return path
     return None
-
-
 def schedule_delete(path, delay=SCREENSHOT_DELETE_DELAY):
-    """
-    Deletes `path` after `delay` seconds on a background thread.
-    """
     def _delete():
         time.sleep(delay)
         try:
@@ -164,10 +159,7 @@ def schedule_delete(path, delay=SCREENSHOT_DELETE_DELAY):
             print(f"[SCREENSHOT] Deleted  → {path}")
         except FileNotFoundError:
             pass
-    t = threading.Thread(target=_delete, daemon=True)
-    t.start()
-
-
+    threading.Thread(target=_delete, daemon=True).start()
 def click_at(x, y, button="left", double=False):
     pyautogui.moveTo(x, y, duration=0.2)
     time.sleep(0.1)
@@ -176,36 +168,18 @@ def click_at(x, y, button="left", double=False):
     else:
         pyautogui.click(button=button)
     time.sleep(0.15)
-
-
-def right_click_at(x, y):
-    click_at(x, y, button="right")
-
-
-def middle_click_at(x, y):
-    click_at(x, y, button="middle")
-
-
 def type_text(text, interval=0.07):
     pyautogui.typewrite(text, interval=interval)
-
-
 def clear_field():
     pyautogui.hotkey("ctrl", "a")
     time.sleep(0.05)
     pyautogui.press("delete")
     time.sleep(0.05)
-
-
 def find_green_button():
-    """
-    Scan the screenshot for a large cluster of Roblox-green pixels
-    (the Play button).  Returns (cx, cy) of the green region or None.
-    """
     img = take_screenshot()
     if img is None:
         return None
-    w, h = img.size
+    w, h   = img.size
     pixels = img.load()
     green_pixels = []
     for y in range(h // 3, h):
@@ -218,29 +192,21 @@ def find_green_button():
         ys = [p[1] for p in green_pixels]
         return (sum(xs) // len(xs), sum(ys) // len(ys))
     return None
-
-
 # ─── Login ────────────────────────────────────────────────────────────────────
-
 def roblox_login():
     cx = screen_width  // 2
     cy = screen_height // 2
-
     USERNAME_OFFSET = -80
     PASSWORD_OFFSET =   0
     SIGNIN_OFFSET   =  80
-
     print("[LOGIN] Waiting up to 5 minutes for the Roblox login screen...")
-
-    deadline     = time.time() + LOGIN_WAIT_SECONDS
-    login_found  = False
-
+    deadline    = time.time() + LOGIN_WAIT_SECONDS
+    login_found = False
     while time.time() < deadline:
         if not roblox_window_visible():
             print("[LOGIN] Window not visible yet...")
             time.sleep(LOGIN_POLL_INTERVAL)
             continue
-
         focus_window("Roblox")
         img = take_screenshot()
         if img:
@@ -252,78 +218,56 @@ def roblox_login():
                 print("[LOGIN] Login screen detected.")
                 login_found = True
                 break
-
         remaining = int(deadline - time.time())
         print(f"[LOGIN] Still waiting... {remaining}s remaining")
         time.sleep(LOGIN_POLL_INTERVAL)
-
     if not login_found:
         print("[LOGIN] Timeout — attempting login anyway.")
-
     focus_window("Roblox")
     time.sleep(1.0)
-
     print("[LOGIN] Entering username...")
     click_at(cx, cy + USERNAME_OFFSET)
     time.sleep(0.2)
     clear_field()
     type_text(ROBLOX_USERNAME)
     time.sleep(0.3)
-
     print("[LOGIN] Entering password...")
     click_at(cx, cy + PASSWORD_OFFSET)
     time.sleep(0.2)
     clear_field()
     type_text(ROBLOX_PASSWORD)
     time.sleep(0.3)
-
     print("[LOGIN] Clicking Sign In...")
     click_at(cx, cy + SIGNIN_OFFSET)
     time.sleep(0.4)
     pyautogui.press("return")
-
     print("[LOGIN] Waiting 30 seconds for game to load after sign-in...")
     time.sleep(30)
     focus_window("Roblox")
     print("[LOGIN] Login sequence complete.")
-
-
-# ─── Leave Game (chat command !leavegame) ─────────────────────────────────────
-
+# ─── Leave Game ───────────────────────────────────────────────────────────────
 def leave_game():
-    """
-    Leaves the current Roblox game using the in-game menu sequence:
-      Wait 5s → ESC → Wait 3s → L (Leave) → Wait 3s → ENTER (Confirm)
-    """
     print("[LEAVEGAME] Initiating leave sequence...")
     focus_window("Roblox")
-
     print(f"[LEAVEGAME] Waiting {LEAVEGAME_INIT_WAIT}s before opening menu...")
     time.sleep(LEAVEGAME_INIT_WAIT)
-
-    print("[LEAVEGAME] Pressing ESC to open menu...")
+    print("[LEAVEGAME] Pressing ESC...")
     focus_window("Roblox")
     pyautogui.press("escape")
-
     print(f"[LEAVEGAME] Waiting {LEAVEGAME_ESC_TO_L_WAIT}s for menu to open...")
     time.sleep(LEAVEGAME_ESC_TO_L_WAIT)
-
-    print("[LEAVEGAME] Pressing L to select Leave Game...")
+    print("[LEAVEGAME] Pressing L (Leave Game)...")
     focus_window("Roblox")
     pyautogui.press("l")
-
     print(f"[LEAVEGAME] Waiting {LEAVEGAME_L_TO_ENTER_WAIT}s for confirm dialog...")
     time.sleep(LEAVEGAME_L_TO_ENTER_WAIT)
-
-    print("[LEAVEGAME] Pressing ENTER to confirm leaving...")
+    print("[LEAVEGAME] Pressing ENTER to confirm...")
     focus_window("Roblox")
     pyautogui.press("return")
-
-    print("[LEAVEGAME] Leave sequence complete. Waiting for Roblox home screen...")
+    print("[LEAVEGAME] Left game. Waiting for home screen...")
     time.sleep(5)
 
-
-# ─── Join Game (chat command !joingame) ───────────────────────────────────────
+# ─── Join Game ────────────────────────────────────────────────────────────────
 
 def joingame_search(game_name):
     """
@@ -558,6 +502,7 @@ def main():
     print("[BOT]   Leave game: !leavegame  → ESC (5s) → L (3s) → ENTER")
     print("[BOT] ============================================================")
 
+    
     launch_roblox(ROBLOX_GAME_ID)
     roblox_login()
 
